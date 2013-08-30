@@ -1,7 +1,3 @@
-#import "ZipFile.h"
-#import "ZipWriteStream.h"
-
-
 
 
 @interface UIApplication (rtd)
@@ -158,29 +154,6 @@
     [output appendFormat:@"\n%@", [self methodsStringForClass:cls isClassMethods:NO]];
     [output appendString:@"\n@end"];
     return [[output copy] autorelease];
-}
-
-%new
--(void)doRuntimeDump {
-    NSBundle *bundle = [NSBundle mainBundle];
-    NSString *basePath = [@"/var/tmp/" stringByAppendingPathComponent:[bundle bundleIdentifier]];
-    
-    ZipFile *zipFile = [[ZipFile alloc] initWithFileName:[basePath stringByAppendingPathExtension:@"zip"] mode:ZipFileModeCreate];
-    
-    unsigned int classCount = 0;
-    const char **classes = objc_copyClassNamesForImage([[bundle executablePath] UTF8String], &classCount);
-    for (unsigned int c = 0; c < classCount; c++) {
-        Class cls = objc_getClass(classes[c]);
-        NSString *satr = [self headerStringForClass:cls];
-        NSString *filePath = [NSStringFromClass(cls) stringByAppendingPathExtension:@"h"];
-        ZipWriteStream *stream = [zipFile writeFileInZipWithName:filePath compressionLevel:ZipCompressionLevelBest];
-        [stream writeData:[satr dataUsingEncoding:NSUTF8StringEncoding]];
-        [stream finishedWriting];
-    }
-    [zipFile close];
-    
-    UIAlertView *view = [[UIAlertView alloc] initWithTitle:@"complete" message:[basePath stringByAppendingPathExtension:@"zip"] delegate:nil cancelButtonTitle:@"ok" otherButtonTitles:nil];
-    [view show];
 }
 
 %end
