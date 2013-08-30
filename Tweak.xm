@@ -1,12 +1,25 @@
 #import "ZipFile.h"
 #import "ZipWriteStream.h"
 
+
+
+
 @interface UIApplication (rtd)
 -(NSString *)nameForEncoding:(const char *)enc afterVar:(NSString **)after;
 -(NSString *)nameForEncodingS:(NSString *)encoding afterVar:(NSString **)after;
 -(void)doRuntimeDump;
 -(NSString *)methodsStringForClass:(Class)cls isClassMethods:(BOOL)clsmethods;
 -(NSString *)headerStringForClass:(Class)cls;
+@end
+
+
+@interface NSObject (clsDmp)
+-(NSString *)$headerString;
+@end
+@implementation NSObject (clsDmp)
+-(NSString *)$headerString {
+    return [[UIApplication sharedApplication] headerStringForClass:[self class]];
+}
 @end
 
 #define ENC(sym, str) if ([encoding isEqualToString:@sym]) { return str; }
