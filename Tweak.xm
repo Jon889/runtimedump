@@ -1,55 +1,125 @@
+#import <objc/runtime.h>
 
-
-@interface UIApplication (rtd)
--(NSString *)nameForEncoding:(const char *)enc afterVar:(NSString **)after;
--(NSString *)nameForEncodingS:(NSString *)encoding afterVar:(NSString **)after;
--(void)doRuntimeDump;
--(NSString *)methodsStringForClass:(Class)cls isClassMethods:(BOOL)clsmethods;
--(NSString *)headerStringForClass:(Class)cls;
-@end
-
+NSString * nameForEncoding(const char * enc, NSString ** after);
+NSString * nameForEncodingS(NSString * enc, NSString ** after);
+NSString * methodsStringForClass(Class cls, BOOL clsmethods);
 
 @interface NSObject (clsDmp)
 -(NSString *)$headerString;
+-(NSString *)$hs;
+-(NSString *)$printAllIVars;
+@end
+
+@interface NSBundle (clsDmp)
+-(NSArray *)$classes;
 @end
 @implementation NSObject (clsDmp)
--(NSString *)$headerString {
-    return [[UIApplication sharedApplication] headerStringForClass:[self class]];
+
+-(NSString *)$printAllIVars {   
+    unsigned int ivarCount = 0;
+    Ivar *ivars = class_copyIvarList([self class], &ivarCount);
+    NSMutableString *output = [NSMutableString stringWithFormat:@"(%i)\n", ivarCount];
+    if (ivarCount == 0) {
+        return @"No Ivars";
+    }
+    for (unsigned int i = 0; i < ivarCount; i++) {
+        NSString *ivarName = [NSString stringWithUTF8String:ivar_getName(ivars[i])];
+        [output appendFormat:@"%@ : %@\n", ivarName, [self valueForKey:ivarName]];
+    }
+    return output;
 }
+
+-(NSString *)$hs {
+    return [self $headerString];
+}
+-(NSString *)$headerString {
+    Class cls = [self class];
+    NSString *superclass =  NSStringFromClass(class_getSuperclass(cls));
+    NSString *mclass = NSStringFromClass(cls);
+    NSMutableString *output = [NSMutableString stringWithFormat:@"@interface %@ : %@", mclass, superclass];
+    
+    unsigned int protocolCount = 0;
+    Protocol **protocols = class_copyProtocolList(cls, &protocolCount);
+    if (protocolCount > 0) {
+        NSMutableString *protocolString = [NSMutableString stringWithString:@"<"];
+        for (unsigned int p = 0; p < protocolCount; p++) {
+            [protocolString appendFormat:@"%s%@", protocol_getName(protocols[p]), (p == protocolCount-1) ? @"" : @", "];
+        }
+        [protocolString appendString:@">"];
+        [output appendFormat:@" %@", protocolString];
+    }
+    
+    unsigned int ivarCount = 0;
+    Ivar *ivars = class_copyIvarList(cls, &ivarCount);
+    if (ivarCount > 0) {
+        NSMutableString *ivarString = [NSMutableString stringWithString:@"{\n"];
+        for (unsigned int i = 0; i < ivarCount; i++) {
+            const char *type = ivar_getTypeEncoding(ivars[i]);
+            NSString *after = @"";
+            [ivarString appendFormat:@"    %@ %s%@;\n", nameForEncoding(type, &after), ivar_getName(ivars[i]), after];
+        }
+        [ivarString appendString:@"}"];
+        [output appendFormat:@" %@", ivarString];
+    }
+    [output appendFormat:@"\n%@", methodsStringForClass(cls, YES)];
+    [output appendFormat:@"\n%@", methodsStringForClass(cls, NO)];
+    [output appendString:@"\n@end"];
+    return [[output copy] autorelease];
+}
+
 @end
 
+%hook NSBundle
+%new
+-(NSArray *)$classes {
+    unsigned int count = 0;
+    const char** classNames = objc_copyClassNamesForImage([[self executablePath] UTF8String], &count);
+    NSMutableArray *collector = [NSMutableArray array];
+    for (int i = 0; i < count; i++) {
+        const char* className = classNames[i];
+        [collector addObject:objc_getClass(className)];
+    }
+    return [NSArray arrayWithArray:collector];
+}
+%new
+-(BOOL)$saveAllHeadersToDirectory:(NSString *)directory {
+    BOOL success = YES;
+    for (Class cls in [self $classes]) {
+        NSString *header = [cls $headerString];
+        NSString *name = [NSStringFromClass(cls) stringByAppendingString:@".h"];
+        BOOL written = [header writeToFile:[directory stringByAppendingPathComponent:name] atomically:YES encoding:NSUTF8StringEncoding error:nil];
+        if (!written) {
+            success = NO;
+        }
+    }
+    return success;
+}
+
+%end
+
+NSString * nameForEncoding(const char * enc, NSString ** after) {
+    return nameForEncodingS([NSString stringWithUTF8String:enc], after);
+}
+
 #define ENC(sym, str) if ([encoding isEqualToString:@sym]) { return str; }
-%hook UIApplication
-%new
-+(NSString *)isWorking {
-    return @"yup";
-}
-
-%new
--(NSString *)nameForEncoding:(const char *)enc afterVar:(NSString **)after {
-    return [self nameForEncodingS:[NSString stringWithUTF8String:enc] afterVar:after];
-}
-
-
-%new
--(NSString *)nameForEncodingS:(NSString *)encoding afterVar:(NSString **)after {
+NSString * nameForEncodingS(NSString * encoding, NSString ** after) {
     if (encoding == nil) {
         return @"";
     }
     if ([encoding characterAtIndex:0] == '^') {
-        NSString *sofar = [self nameForEncodingS:[encoding substringFromIndex:1] afterVar:after];
+        NSString *sofar = nameForEncodingS([encoding substringFromIndex:1], after);
         return [sofar stringByAppendingString:([sofar characterAtIndex:sofar.length-1] == '*') ? @"*" : @" *"];
     }
     if ([encoding characterAtIndex:0] == '[') {
-        int length = 0;
+        NSInteger length = 0;
         [[NSScanner scannerWithString:[encoding stringByReplacingCharactersInRange:NSMakeRange(0, 1) withString:@""]] scanInteger:&length];
-        NSString *len = [NSString stringWithFormat:@"%i", length];
+        NSString *len = [NSString stringWithFormat:@"%li", (long)length];
         NSString *carryon = [[encoding stringByReplacingCharactersInRange:NSMakeRange(encoding.length-1, 1) withString:@""]  stringByReplacingCharactersInRange:NSMakeRange(0, len.length+1) withString:@""];
         
         NSString *after2 = nil;
-        NSString *retVal = [self nameForEncodingS:carryon afterVar:&after2];
+        NSString *retVal = nameForEncodingS(carryon, &after2);
         if (after != nil) {
-            *after = [NSString stringWithFormat:@"[%i]%@", length, after2 ?: @""];
+            *after = [NSString stringWithFormat:@"[%li]%@", (long)length, after2 ?: @""];
         }
         return retVal;
     }
@@ -90,10 +160,9 @@
     ENC("*", @"char *");
     ENC("#", @"Class");
     ENC(":", @"SEL");
-    return [NSString stringWithFormat:@"unk(%@)", encoding];
+    return [NSString stringWithFormat:@"id \\*unk(%@)*\\", encoding];
 }
-%new
--(NSString *)methodsStringForClass:(Class)cls isClassMethods:(BOOL)clsmethods {
+NSString * methodsStringForClass(Class cls, BOOL clsmethods) {
     if (clsmethods) {
         cls = object_getClass(cls);
     }
@@ -103,13 +172,13 @@
         NSMutableString *methodString = [NSMutableString string];
         for (unsigned int m = 0; m < methodCount; m++) {
             NSString *afterRet = @"";
-            NSString *returnType = [self nameForEncoding:method_copyReturnType(methods[m]) afterVar:&afterRet];
+            NSString *returnType = nameForEncoding(method_copyReturnType(methods[m]), &afterRet);
             returnType = [returnType stringByAppendingString:afterRet];
             NSString *name = NSStringFromSelector(method_getName(methods[m]));
             unsigned int argCount = method_getNumberOfArguments(methods[m]);
             for (unsigned int a = 2; a < argCount; a++) {//skip 0 and 1 for self, _cmd
                 NSString *after = @"";
-                NSString *arg = [NSString stringWithFormat:@"!(%@%@)arg%i ", [self nameForEncoding:method_copyArgumentType(methods[m], a) afterVar:&after], after, a];
+                NSString *arg = [NSString stringWithFormat:@"!(%@%@)arg%i ", nameForEncoding(method_copyArgumentType(methods[m], a), &after), after, a];
                 NSRange locationOfFirstColon = [name rangeOfString:@":"];
                 name = [name stringByReplacingCharactersInRange:locationOfFirstColon withString:arg];
             }
@@ -121,39 +190,5 @@
     }
     return @"";
 }
-%new
--(NSString *)headerStringForClass:(Class)cls {
-    NSString *superclass =  NSStringFromClass(class_getSuperclass(cls));
-    NSString *mclass = NSStringFromClass(cls);
-    NSMutableString *output = [NSMutableString stringWithFormat:@"@interface %@ : %@", mclass, superclass];
-    
-    unsigned int protocolCount = 0;
-    Protocol **protocols = class_copyProtocolList(cls, &protocolCount);
-    if (protocolCount > 0) {
-        NSMutableString *protocolString = [NSMutableString stringWithString:@"<"];
-        for (unsigned int p = 0; p < protocolCount; p++) {
-            [protocolString appendFormat:@"%s%@", protocol_getName(protocols[p]), (p == protocolCount-1) ? @"" : @", "];
-        }
-        [protocolString appendString:@">"];
-        [output appendFormat:@" %@", protocolString];
-    }
-    
-    unsigned int ivarCount = 0;
-    Ivar *ivars = class_copyIvarList(cls, &ivarCount);
-    if (ivarCount > 0) {
-        NSMutableString *ivarString = [NSMutableString stringWithString:@"{\n"];
-        for (unsigned int i = 0; i < ivarCount; i++) {
-            const char *type = ivar_getTypeEncoding(ivars[i]);
-            NSString *after = @"";
-            [ivarString appendFormat:@"    %@ %s%@;\n", [self nameForEncoding:type afterVar:&after], ivar_getName(ivars[i]), after];
-        }
-        [ivarString appendString:@"}"];
-        [output appendFormat:@" %@", ivarString];
-    }
-    [output appendFormat:@"\n%@", [self methodsStringForClass:cls isClassMethods:YES]];
-    [output appendFormat:@"\n%@", [self methodsStringForClass:cls isClassMethods:NO]];
-    [output appendString:@"\n@end"];
-    return [[output copy] autorelease];
-}
 
-%end
+
