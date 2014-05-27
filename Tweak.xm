@@ -8,6 +8,7 @@ NSString * methodsStringForClass(Class cls, BOOL clsmethods);
 -(NSString *)$headerString;
 -(NSString *)$hs;
 -(NSString *)$printAllIVars;
+-(NSArray *)$messages;
 @end
 
 @interface NSBundle (clsDmp)
@@ -27,6 +28,17 @@ NSString * methodsStringForClass(Class cls, BOOL clsmethods);
         [output appendFormat:@"%@ : %@\n", ivarName, [self valueForKey:ivarName]];
     }
     return output;
+}
+
+-(NSArray *)$messages {
+    unsigned int methodCount = 0;
+    Method *methods = class_copyMethodList(cls, &methodCount);
+    NSMutableArray *collector = [NSMutableArray array];
+    for (int i = 0; i < methodCount; i++) {
+        Method method = methods[i];
+        [collector addObject:method_getName(method)];
+    }
+    return [NSArray arrayWithArray:collector];
 }
 
 -(NSString *)$hs {
@@ -190,5 +202,4 @@ NSString * methodsStringForClass(Class cls, BOOL clsmethods) {
     }
     return @"";
 }
-
 
