@@ -53,7 +53,7 @@ You think BrowserController is likely to reference `[v superview]`, so do:
     
     [[BrowserController sharedBrowserController] $printAllIVars]
     
-Which gives:
+Which gives: (NB: this is a string not a dictionary because cycript doesn't expand new lines in dictionary descriptions)
 
     _window : <MobileSafariWindow: 0x137df2de0; baseClass = UIWindow; frame = (0 0; 320 568); opaque = NO; gestureRecognizers = <NSArray: 0x137f96060>; layer = <UIWindowLayer: 0x137d8dbf0>>
     _addressView : (null)
