@@ -61,7 +61,7 @@ Which gives: (NB: this is a string not a dictionary because cycript doesn't expa
     _rootView : <UIView: 0x137df4b30; frame = (0 20; 320 548); layer = <CALayer: 0x137df43e0>>
     //...etc...
     
-Searching for 0x137df4b30 will show you that instance variable you're looking for is _rootView.
+Searching for `0x137df4b30` will show you that instance variable you're looking for is `_rootView`.
 
 You can then look at the header to see if there's an accessor method, or use the instance variable in your code directly. 
     
