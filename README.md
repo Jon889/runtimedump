@@ -65,8 +65,21 @@ Searching for `0x137df4b30` will show you that instance variable you're looking 
 
 You can then look at the header to see if there's an accessor method, or use the instance variable in your code directly. 
     
-    
+$methods
+========
 
-    
+Returns an array of selectors of all the methods of the object. 
+
+For example:
+
+    [NSObject $messages];
+
+Returns all the class methods of NSObject. 
+
+And:
+
+    [[NSObject new] $messages];
+
+Returns all the induce methods of NSObject. 
 
 
