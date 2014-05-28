@@ -65,7 +65,16 @@ Searching for `0x137df4b30` will show you that instance variable you're looking 
 
 You can then look at the header to see if there's an accessor method, or use the instance variable in your code directly. 
     
+$selectView
+===========
+
+Allows you to touch the screen to select a view.
+
+For example:
     
+    [UIApp $selectView];
+
+The screen will then tint red, and you can tap on the screen to select the view under where you tap. The selected view will be returned by the method. This method doesn't return until you tap on the screen.
 
     
 

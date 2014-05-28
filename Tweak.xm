@@ -1,4 +1,5 @@
 #import <objc/runtime.h>
+#import "RTBSelectView.h"
 
 NSString * nameForEncoding(const char * enc, NSString ** after);
 NSString * nameForEncodingS(NSString * enc, NSString ** after);
@@ -13,6 +14,27 @@ NSString * methodsStringForClass(Class cls, BOOL clsmethods);
 @interface NSBundle (clsDmp)
 -(NSArray *)$classes;
 @end
+
+@interface UIApplication (rtBrowse)
+-(UIView *)$selectView;
+@end
+
+
+@implementation UIApplication (rtBrowse)
+-(UIView *)$selectView {
+    RTBSelectView *sv = [[RTBSelectView alloc] initWithFrame:[[self keyWindow] bounds]];
+    [sv setBackgroundColor:[[UIColor redColor] colorWithAlphaComponent:0.1]];
+    [[self keyWindow] addSubview:sv];
+    NSRunLoop *runLoop = [NSRunLoop currentRunLoop];
+    while (![sv didGetTouched] && [runLoop runMode:NSDefaultRunLoopMode beforeDate:[NSDate distantFuture]]);
+    CGPoint touchedPoint = [sv touchedPoint];
+    [sv removeFromSuperview];
+    [sv release];
+    return [[UIApplication sharedApplication].keyWindow hitTest:touchedPoint withEvent:nil];
+}
+@end
+
+
 @implementation NSObject (clsDmp)
 
 -(NSString *)$printAllIVars {   
