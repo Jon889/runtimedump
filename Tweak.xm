@@ -43,23 +43,26 @@ NSString * methodsStringForClass(Class cls, BOOL clsmethods);
     Ivar *ivars = class_copyIvarList([self class], &ivarCount);
     NSMutableString *output = [NSMutableString stringWithFormat:@"(%i)\n", ivarCount];
     if (ivarCount == 0) {
+        free(ivars);
         return @"No Ivars";
     }
     for (unsigned int i = 0; i < ivarCount; i++) {
         NSString *ivarName = [NSString stringWithUTF8String:ivar_getName(ivars[i])];
         [output appendFormat:@"%@ : %@\n", ivarName, [self valueForKey:ivarName]];
     }
+    free(ivars);
     return output;
 }
 
 -(NSArray *)$messages {
     unsigned int methodCount = 0;
-    Method *methods = class_copyMethodList(cls, &methodCount);
+    Method *methods = class_copyMethodList(object_getClass(self), &methodCount);
     NSMutableArray *collector = [NSMutableArray array];
     for (int i = 0; i < methodCount; i++) {
         Method method = methods[i];
-        [collector addObject:method_getName(method)];
+        [collector addObject:NSStringFromSelector(method_getName(method))];
     }
+    free(methods);
     return [NSArray arrayWithArray:collector];
 }
 
@@ -82,7 +85,7 @@ NSString * methodsStringForClass(Class cls, BOOL clsmethods);
         [protocolString appendString:@">"];
         [output appendFormat:@" %@", protocolString];
     }
-    
+    free(protocols);
     unsigned int ivarCount = 0;
     Ivar *ivars = class_copyIvarList(cls, &ivarCount);
     if (ivarCount > 0) {
@@ -95,6 +98,7 @@ NSString * methodsStringForClass(Class cls, BOOL clsmethods);
         [ivarString appendString:@"}"];
         [output appendFormat:@" %@", ivarString];
     }
+    free(ivars);
     [output appendFormat:@"\n%@", methodsStringForClass(cls, YES)];
     [output appendFormat:@"\n%@", methodsStringForClass(cls, NO)];
     [output appendString:@"\n@end"];
@@ -113,6 +117,7 @@ NSString * methodsStringForClass(Class cls, BOOL clsmethods);
         const char* className = classNames[i];
         [collector addObject:objc_getClass(className)];
     }
+    free(classNames);
     return [NSArray arrayWithArray:collector];
 }
 %new
@@ -206,13 +211,17 @@ NSString * methodsStringForClass(Class cls, BOOL clsmethods) {
         NSMutableString *methodString = [NSMutableString string];
         for (unsigned int m = 0; m < methodCount; m++) {
             NSString *afterRet = @"";
-            NSString *returnType = nameForEncoding(method_copyReturnType(methods[m]), &afterRet);
+            const char * returnEnc = method_copyReturnType(methods[m]);
+            NSString *returnType = nameForEncoding(returnEnc, &afterRet);
+            free((void *)returnEnc);
             returnType = [returnType stringByAppendingString:afterRet];
             NSString *name = NSStringFromSelector(method_getName(methods[m]));
             unsigned int argCount = method_getNumberOfArguments(methods[m]);
             for (unsigned int a = 2; a < argCount; a++) {//skip 0 and 1 for self, _cmd
                 NSString *after = @"";
-                NSString *arg = [NSString stringWithFormat:@"!(%@%@)arg%i ", nameForEncoding(method_copyArgumentType(methods[m], a), &after), after, a];
+                const char *argEnc = method_copyArgumentType(methods[m], a);
+                NSString *arg = [NSString stringWithFormat:@"!(%@%@)arg%i ", nameForEncoding(argEnc, &after), after, a];
+                free((void *)argEnc);
                 NSRange locationOfFirstColon = [name rangeOfString:@":"];
                 name = [name stringByReplacingCharactersInRange:locationOfFirstColon withString:arg];
             }
@@ -220,8 +229,10 @@ NSString * methodsStringForClass(Class cls, BOOL clsmethods) {
             name = [name stringByReplacingOccurrencesOfString:@"!" withString:@":"];
             [methodString appendFormat:@"%@(%@)%@;\n", clsmethods ? @"+" : @"-", returnType, name];
         }
+        free(methods);
         return methodString;
     }
+    free(methods);
     return @"";
 }
 
