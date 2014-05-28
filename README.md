@@ -74,8 +74,24 @@ For example:
     
     [UIApp $selectView];
 
+
 The screen will then tint red, and you can tap on the screen to select the view under where you tap. The selected view will be returned by the method. This method doesn't return until you tap on the screen.
 
+$methods
+========
     
+Returns an array of selectors of all the methods of the object. 
+
+For example:
+
+    [NSObject $messages];
+
+Returns all the class methods of NSObject. 
+
+And:
+
+    [[NSObject new] $messages];
+
+Returns all the induce methods of NSObject. 
 
 
